@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from encode_decode import *
-
+import socket
 
 class Client:
     def __init__(self):
