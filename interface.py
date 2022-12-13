@@ -1,5 +1,6 @@
 import tkinter as tk
 from client import *
+
 class Interface:
     def __init__(self):
         self.window = tk.Tk()
