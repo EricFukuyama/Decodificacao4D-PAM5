@@ -1,192 +1,186 @@
 import tkinter as tk
-from client import *
+from tkinter import *
+from tkinter import ttk
+from servidor import Servidor
+from client import Client
+from codificador import Codificador
 
-class Interface:
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import pandas as pd
+from matplotlib import pyplot as plt
+class Aplicacao():
     def __init__(self):
-        self.window = tk.Tk()
-        self.window.title('HDB3 Client')
-        self.window.columnconfigure(0, weight=1)
-        self.window.rowconfigure(0, weight=1)
-        self.window.geometry('205x160')
-        self.window.minsize(205, 160)
-        self.window.maxsize(205, 160)
 
-        self.create_connection_toggle = tk.BooleanVar()
-        self.local_connection_toggle = tk.BooleanVar()
-        self.host = tk.StringVar()
-        self.port = tk.StringVar()
+        self.codificador = Codificador()
 
-        # instancia o cliente
+        self.root = Tk()
+        self.root.title("Codificação/Decodificação")
+        self.root.configure(background = '#1e3743')
+        self.root.geometry("300x100")
+
+        self.criar_botoes_menu_principal()
+        self.rodar()
+
+    def rodar(self):
+        self.root.mainloop()
+
+    def criar_botoes_menu_principal(self):
+        self.bt = Button(self.root,text= "Servidor",command=self.abrir_servidor)
+        self.bt.place(relx=0.2,rely=0.4)
+
+        self.bt = Button(self.root,text= "Cliente",command=self.abrir_cliente)
+        self.bt.place(relx=0.7,rely=0.4)
+
+    #Cliente
+    def abrir_cliente(self):
+        self.root.destroy() # close the current window
+        self.root = tk.Tk() # create another Tk instance
+
+        self.root.title("Cliente")
+        self.root.geometry("500x300")
+        self.criar_abas_client()
+        self.widgets_botoes_client()
+
         self.client = Client()
+        
+        self.root.mainloop()
 
-        # cria frame de conexao e widgets
-        self.connect_frame = tk.Frame(self.window)
-        self.host_entry = tk.Entry(self.connect_frame)
-        self.local_connection_checkbutton = tk.Checkbutton(self.connect_frame)
+    def criar_abas_client(self):
+        self.abas = ttk.Notebook(self.root)
+        self.aba1 = Frame(self.abas)
+        self.aba2 = Frame(self.abas)
+        self.aba3 = Frame(self.abas)
 
-        # cria frame de mensagem e widgets
-        self.message_frame = tk.Frame(self.window)
-        self.history_text = tk.Text(self.message_frame)
-        self.message_text = tk.Text(self.message_frame)
+        self.abas.add(self.aba1,text = "Aba 1")
+        self.abas.add(self.aba2,text = "Input (Codificado)")
+        self.abas.add(self.aba3,text = "Binário (Decodificado)")
+        
 
-        self.history_index = 0.0
-        self.init_connection_frame()
+        self.abas.place(relx = 0,rely =0, relwidth=0.98, relheight=0.98)
 
-        self.receive_toggle = tk.BooleanVar()
-        self.receive_toggle.set(False)
 
-        self.window.mainloop()
+    def widgets_botoes_client(self):
+        self.bt_receber = Button(self.aba1,text= "Receber Mensagem",command=self.receber_mensagem_client)
+        self.bt_receber.place(relx=0.4,rely=0.1,relwidth=0.3)
 
-    def init_connection_frame(self):
-        tk.Label(self.connect_frame, text="Conectar").grid(column=0, row=0, sticky=tk.W)
+        self.text = Text(self.aba1)
+        self.text.place(rely=0.2)
+    
+    def receber_mensagem_client(self):
+        mnsg = self.client.ler_mensagem()
+        mnsg,mnsg_int,mnsg_bin = self.codificador.decodifica_mensagem(mnsg)
 
-        tk.Checkbutton(self.connect_frame, text='Criar sessao', variable=self.create_connection_toggle, command=self.check_if_creating)\
-            .grid(column=0, row=1, sticky=(tk.W, tk.E, tk.S, tk.N))
+        if mnsg != None:
+            self.text.delete("1.00","end")
+            self.text.insert(END,self.formatar_texto_cliente(mnsg,mnsg_bin,mnsg_int))
 
-        self.local_connection_checkbutton.config(text="Conexao local", variable=self.local_connection_toggle, command=self.check_if_local)
-        self.local_connection_checkbutton.grid(column=0, row=2, sticky=(tk.W, tk.E, tk.S, tk.N))
+        self.plotar_grafico1_client(mnsg_int)
+        self.plotar_grafico2_client(mnsg_bin)
 
-        tk.Label(self.connect_frame, text="Host").grid(column=0, row=3, sticky=(tk.W, tk.E))
+    def plotar_grafico1_client(self,mensagem_codificada):
 
-        self.host_entry.configure(width=7, textvariable=self.host)
-        self.host_entry.grid(column=1, row=3, sticky=(tk.W, tk.E, tk.S, tk.N))
+        self.aba2.destroy()
+        self.aba2 = Frame(self.abas)
+        self.abas.add(self.aba2,text = "Input (Codificado)")
 
-        tk.Label(self.connect_frame, text="Port").grid(column=0, row=4, sticky=(tk.W, tk.E, tk.S, tk.N))
+        figure1 = plt.Figure(figsize=(6, 5), dpi=100)
+        ax1 = figure1.add_subplot(111)
+        ax1.step(x = [i for i in range(len(mensagem_codificada))],y = mensagem_codificada,where='post')
+        bar1 = FigureCanvasTkAgg(figure1, self.aba2)
+        bar1.get_tk_widget().pack(side=tk.LEFT, fill=tk.BOTH)
 
-        tk.Entry(self.connect_frame, width=7, textvariable=self.port).grid(column=1, row=4, sticky=(tk.W, tk.E, tk.S, tk.N))
+    def plotar_grafico2_client(self,mensagem):
 
-        tk.Button(self.connect_frame, command=self.connect, text='Conectar').grid(column=1, row=5, sticky=(tk.W, tk.E, tk.S, tk.N))
+        self.aba3.destroy()
+        self.aba3 = Frame(self.abas)
+        self.abas.add(self.aba3,text = "Binário (Decodificado)")
 
-        self.connect_frame.grid(column=0, row=0, sticky=(tk.W, tk.E, tk.S, tk.N))
+        figure1 = plt.Figure(figsize=(6, 5), dpi=100)
+        ax1 = figure1.add_subplot(111)
+        ax1.step(x = [i for i in range(len(mensagem))],y = mensagem,where='post')
+        bar1 = FigureCanvasTkAgg(figure1, self.aba3)
+        bar1.get_tk_widget().pack(side=tk.LEFT, fill=tk.BOTH)
 
-    def init_message_frame(self):
-        scrollbar = tk.Scrollbar(self.message_frame, orient='vertical', command=self.history_text.yview)
-        scrollbar.grid(column=2, row=0, sticky=(tk.W, tk.N, tk.S))
+    def formatar_texto_cliente(self,mnsg_escrita,mnsg_bin,mnsg_algoritmo):
+        return "Mensagem Escrita: " + str(mnsg_escrita) +"\n"+ "Mensagem Binário: " + str(mnsg_bin) + "\n" + "Mensagem Algoritmo: " + str(mnsg_algoritmo) 
 
-        self.history_text.config(height=20, width=100, yscrollcommand=scrollbar.set)
-        self.history_text.grid(column=0, row=0, columnspan=2, sticky=(tk.W, tk.E))
+    ##SERVIDOR
+    def abrir_servidor(self):
+        self.root.destroy() # close the current window
+        self.root = tk.Tk() # create another Tk instance
 
-        self.message_text.config(height=5, width=80)
-        self.message_text.grid(column=0, row=1, rowspan=2, sticky=tk.W)
+        self.root.title("Codificação/Decodificação")
+        self.root.geometry("500x300")
 
-        tk.Button(self.message_frame, command=self.receive_message, text='Receber').grid(column=1, row=2, sticky=(tk.W, tk.E, tk.S, tk.N))
+        self.servidor = Servidor()
+        self.criar_abas_servidor()
+        self.widgets_botoes_servidor()
+        self.root.mainloop()
+        
+    def criar_abas_servidor(self):
+        self.abas = ttk.Notebook(self.root)
+        self.aba1 = Frame(self.abas)
+        self.aba2 = Frame(self.abas)
+        self.aba3 = Frame(self.abas)
+        
+        self.abas.add(self.aba1,text = "Aba 1")
+        self.abas.add(self.aba2,text = "Binário")
+        self.abas.add(self.aba3,text = "Codificação")
 
-        send_button = tk.Button(self.message_frame, command=self.send_message, height=2, width=20, text='Enviar')
-        send_button.grid(column=1, row=1, sticky=(tk.W, tk.E, tk.N))
+        self.abas.place(relx = 0,rely =0, relwidth=0.98, relheight=0.98)
 
-        self.message_frame.grid(column=0, row=0, sticky=(tk.W, tk.E, tk.S, tk.N), padx=5, pady=5)
+    def widgets_botoes_servidor(self):
+        self.lb_codigo = Label(self.aba1,text = "Mensagem")
+        self.lb_codigo.place(relx=0.05,rely=0.05)
 
-    def connect(self):
-        try:
-            self.client.host = self.host.get()
-            self.client.port = int(self.port.get())
-            if self.create_connection_toggle.get():
-                self.client.create_connection()
-                self.client.is_host = True
-            else:
-                self.client.connect()
-            self.connect_frame.destroy()
-            self.init_message_frame()
-            self.window.geometry('758x450')
-            self.window.minsize(758, 450)
-            self.window.maxsize(758, 450)
+        self.codigo_entry = Entry(self.aba1)
+        self.codigo_entry.place(relx = 0.05,rely = 0.15,relwidth=0.5)
 
-        except TimeoutError:
-            print("Nao foi possivel conectar a" + self.client.host + ":" + str(self.client.port))
+        self.bt_enviar = Button(self.aba1,text= "Enviar Mensagem",command = self.enviar_mensagem_servidor)
+        self.bt_enviar.place(relx=0.6,rely=0.15,relwidth=0.3)
+        
+        self.text = Text(self.aba1)
+        self.text.place(rely=0.3)
 
-    def check_if_local(self):
-        if self.local_connection_toggle.get():
-            self.host_entry.configure(state='disabled')
-            self.host.set(get_ip())
-        else:
-            self.host_entry.configure(state='normal')
-            self.host.set('')
+    def enviar_mensagem_servidor(self):
+        text = self.codigo_entry.get()
+        
+        mensagem_codificada,mensagem_bin = self.codificador.codificar_mensagem(text)
 
-    def check_if_receiving(self):
-        if self.receive_toggle.get():
-            self.receive_message()
+        self.text.delete("1.00","end")
+        self.text.insert(END,self.formatar_texto_servidor(text,mensagem_bin,mensagem_codificada))
 
-    def check_if_creating(self):
-        if self.create_connection_toggle.get():
-            self.local_connection_checkbutton.config(state='disabled')
-            self.host_entry.configure(state='disabled')
-            self.host.set(get_ip())
-            print('LOCAL: ', get_ip())
-        else:
-            self.local_connection_checkbutton.config(state='normal')
-            self.host_entry.configure(state='normal')
-            self.host.set('')
+        self.plotar_grafico_servidor1(mensagem_bin)
+        self.plotar_grafico_servidor2(mensagem_codificada)
 
-    def send_message(self):
-        message = self.message_text.get('0.0', tk.END)
+        self.servidor.mandar_mensagem(','.join([str(mnsg) for mnsg in mensagem_codificada]))
+        self.codigo_entry.delete(0,"end")
 
-        message = message.removesuffix('\n')
+    def plotar_grafico_servidor1(self,mensagem):
 
-        self.client.set_message_to_send(message)
+        self.aba2.destroy()
+        self.aba2 = Frame(self.abas)
+        self.abas.add(self.aba2,text = "Binário")
 
-        # pega as variaveis do client e armazena no tk.Text de historico
-        self.history_text.insert(tk.END, 'ENVIADO:\n')
+        figure1 = plt.Figure(figsize=(6, 5), dpi=100)
+        ax1 = figure1.add_subplot(111)
+        ax1.step(x = [i for i in range(len(mensagem))],y = mensagem,where='post')
+        bar1 = FigureCanvasTkAgg(figure1, self.aba2)
+        bar1.get_tk_widget().pack(side=tk.LEFT, fill=tk.BOTH)
 
-        self.history_text.insert(tk.END, '- Texto:\n')
+    def plotar_grafico_servidor2(self,mensagem_codificada):
 
-        self.history_text.insert(tk.END, self.client.text_message)
-        self.history_text.insert(tk.END, '\n\n')
+        self.aba3.destroy()
+        self.aba3 = Frame(self.abas)
+        self.abas.add(self.aba3,text = "Codificação")
 
-        self.history_text.insert(tk.END, '- Encriptado:\n')
+        figure1 = plt.Figure(figsize=(6, 5), dpi=100)
+        ax1 = figure1.add_subplot(111)
+        ax1.step(x = [i for i in range(len(mensagem_codificada))],y = mensagem_codificada,where='post')
+        bar1 = FigureCanvasTkAgg(figure1, self.aba3)
+        bar1.get_tk_widget().pack(side=tk.LEFT, fill=tk.BOTH)
 
-        self.history_text.insert(tk.END, self.client.caesar)
-        self.history_text.insert(tk.END, '\n\n')
+    def formatar_texto_servidor(self,mnsg_escrita,mnsg_bin,mnsg_algoritmo):
+        return "Mensagem Escrita: " + str(mnsg_escrita) +"\n"+ "Mensagem Binário: " + str(mnsg_bin) + "\n" + "Mensagem Algoritmo: " + str(mnsg_algoritmo) 
 
-        self.history_text.insert(tk.END, '- ASCII:\n')
-
-        self.history_text.insert(tk.END, self.client.ascii_message)
-        self.history_text.insert(tk.END, '\n\n')
-
-        self.history_text.insert(tk.END, '- Binario:\n')
-
-        self.history_text.insert(tk.END, self.client.binary_message)
-        self.history_text.insert(tk.END, '\n\n')
-
-        self.history_text.insert(tk.END, '- Codificado:\n')
-
-        self.history_text.insert(tk.END, self.client.encoded_message[0])
-        self.history_text.insert(tk.END, '\n\n\n\n')
-
-        self.window.update()
-        self.client.send_message()
-        self.receive_toggle.set(True)
-
-        self.message_text.delete('0.0', tk.END)
-
-    def receive_message(self):
-        self.client.receive_message()
-
-        # pega as variaveis do client e armazena no tk.Text de historico
-        self.history_text.insert(tk.END, 'RECEBIDO:\n')
-
-        self.history_text.insert(tk.END, '- Codificado:\n')
-
-        self.history_text.insert(tk.END, self.client.encoded_message)
-        self.history_text.insert(tk.END, '\n\n')
-
-        self.history_text.insert(tk.END, '- Binario:\n')
-
-        self.history_text.insert(tk.END, self.client.binary_message)
-        self.history_text.insert(tk.END, '\n\n')
-
-        self.history_text.insert(tk.END, '- ASCII:\n')
-
-        self.history_text.insert(tk.END, self.client.ascii_message)
-        self.history_text.insert(tk.END, '\n\n')
-
-        self.history_text.insert(tk.END, '- Encriptado:\n')
-
-        self.history_text.insert(tk.END, self.client.caesar)
-        self.history_text.insert(tk.END, '\n\n')
-
-        self.history_text.insert(tk.END, '- Texto:\n')
-
-        self.history_text.insert(tk.END, self.client.text_message)
-        self.history_text.insert(tk.END, '\n\n\n\n')
-
-        self.receive_toggle.set(False)
+app = Aplicacao()
